@@ -29,9 +29,12 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/shurcooL/httpgzip v0.0.0-20190720172056-320755c1c1b0
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
+	github.com/uber/jaeger-lib v2.2.0+incompatible // indirect
 	go.uber.org/zap v1.15.0
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
 	golang.org/x/text v0.3.2
 	google.golang.org/grpc v1.26.0
 	modernc.org/mathutil v1.0.0
 )
+
+replace github.com/pingcap/tidb => github.com/glorv/tidb v1.1.0-beta.0.20200609123754-3079e3120924
