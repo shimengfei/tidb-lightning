@@ -19,6 +19,7 @@ import (
 	"github.com/pingcap/parser/mysql"
 	"github.com/pingcap/tidb/meta/autoid"
 	"github.com/pingcap/tidb/table"
+	"github.com/pingcap/tidb/table/tables"
 	"github.com/pingcap/tidb/tablecodec"
 	"github.com/pingcap/tidb/types"
 	"go.uber.org/zap"
@@ -36,6 +37,7 @@ type tableKVEncoder struct {
 	tbl         table.Table
 	se          *session
 	recordCache []types.Datum
+	ctxCache    *tables.CommonCtx
 }
 
 func NewTableKVEncoder(tbl table.Table, options *SessionOptions) Encoder {
@@ -156,11 +158,14 @@ func (kvcodec *tableKVEncoder) Encode(
 	var value types.Datum
 	var err error
 	var record []types.Datum
+	var recordCtx *tables.CommonCtx
 
 	if kvcodec.recordCache != nil {
 		record = kvcodec.recordCache
+		recordCtx = kvcodec.ctxCache
 	} else {
 		record = make([]types.Datum, 0, len(cols)+1)
+		recordCtx = tables.NewCommonCtx(len(cols))
 	}
 
 	isAutoRandom := false
@@ -196,7 +201,7 @@ func (kvcodec *tableKVEncoder) Encode(
 			if hasSignBit {
 				incrementalBits -= 1
 			}
-			kvcodec.tbl.RebaseAutoID(kvcodec.se, value.GetInt64()&((1 << incrementalBits) - 1), false, autoid.AutoRandomType)
+			kvcodec.tbl.RebaseAutoID(kvcodec.se, value.GetInt64()&((1<<incrementalBits)-1), false, autoid.AutoRandomType)
 		}
 		if isAutoIncCol {
 			kvcodec.tbl.RebaseAutoID(kvcodec.se, value.GetInt64(), false, autoid.AutoIncrementType)
@@ -216,7 +221,7 @@ func (kvcodec *tableKVEncoder) Encode(
 		record = append(record, value)
 		kvcodec.tbl.RebaseAutoID(kvcodec.se, value.GetInt64(), false, autoid.RowIDAllocType)
 	}
-	_, err = kvcodec.tbl.AddRecord(kvcodec.se, record)
+	_, err = kvcodec.tbl.AddRecordWithCtx(kvcodec.se, record, recordCtx)
 	if err != nil {
 		logger.Error("kv encode failed",
 			zap.Array("originalRow", rowArrayMarshaler(row)),
@@ -228,6 +233,7 @@ func (kvcodec *tableKVEncoder) Encode(
 
 	pairs := kvcodec.se.takeKvPairs()
 	kvcodec.recordCache = record[:0]
+	kvcodec.ctxCache = recordCtx
 	return kvPairs(pairs), nil
 }
 
