@@ -34,4 +34,4 @@ require (
 	modernc.org/mathutil v1.0.0
 )
 
-replace github.com/pingcap/tidb => github.com/glorv/tidb v1.1.0-beta.0.20200610093109-a7748358ab7e
+replace github.com/pingcap/tidb => github.com/glorv/tidb v1.1.0-beta.0.20200610115728-f1238fe6b4db
