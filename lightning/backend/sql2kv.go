@@ -180,7 +180,7 @@ func (kvcodec *tableKVEncoder) Encode(
 		if j >= 0 && j < len(row) {
 			value, err = table.CastValue(kvcodec.se, row[j], col.ToInfo(), false, false)
 			if err == nil {
-				value, err = col.HandleBadNull(value, kvcodec.se.vars.StmtCtx)
+				err = col.HandleBadNull(&value, kvcodec.se.vars.StmtCtx)
 			}
 		} else if isAutoIncCol {
 			// we still need a conversion, e.g. to catch overflow with a TINYINT column.
