@@ -35,3 +35,5 @@ require (
 )
 
 replace github.com/pingcap/tidb => github.com/glorv/tidb v1.1.0-beta.0.20200611075632-394f1cfbe38b
+
+replace github.com/cockroachdb/pebble => github.com/glorv/pebble v0.0.0-20200612062857-44c9f9c01ae1

@@ -71,8 +71,6 @@ github.com/cockroachdb/errors v1.2.4 h1:Lap807SXTH5tri2TivECb/4abUkMZC9zRoLarvcK
 github.com/cockroachdb/errors v1.2.4/go.mod h1:rQD95gz6FARkaKkQXUksEje/d9a6wBJoCr5oaCLELYA=
 github.com/cockroachdb/logtags v0.0.0-20190617123548-eb05cc24525f h1:o/kfcElHqOiXqcou5a3rIlMc7oJbMQkeLk0VQJ7zgqY=
 github.com/cockroachdb/logtags v0.0.0-20190617123548-eb05cc24525f/go.mod h1:i/u985jwjWRlyHXQbwatDASoW0RMlZ/3i9yJHE2xLkI=
-github.com/cockroachdb/pebble v0.0.0-20200601233547-7956a7440a70 h1:oinoYvbVDh+9Kh+/00vNKBS7px1xPz0k6wHLfpepOMg=
-github.com/cockroachdb/pebble v0.0.0-20200601233547-7956a7440a70/go.mod h1:crLnbSFbwAcQNs9FPfI1avHb5BqVgqZcr4r+IzpJ5FM=
 github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd h1:qMd81Ts1T2OTKmB4acZcyKaMtRnY5Y44NuXGX2GFJ1w=
 github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd/go.mod h1:sE/e/2PUdi/liOCUjSTXgM1o87ZssimdTWN964YiIeI=
 github.com/coocood/badger v1.5.1-0.20200515070411-e02af0688441 h1:kz8q4CQFnlNynLwnMPxIChtQybSTX1p7GNxa3//MfsM=
@@ -153,6 +151,8 @@ github.com/gin-contrib/sse v0.1.0/go.mod h1:RHrZQHXnP2xjPF+u1gW/2HnVO7nvIa9PG3Gm
 github.com/gin-gonic/gin v1.3.0/go.mod h1:7cKuhb5qV2ggCFctp2fJQ+ErvciLZrIeoOSOm6mUr7Y=
 github.com/gin-gonic/gin v1.4.0/go.mod h1:OW2EZn3DO8Ln9oIKOvM++LBO+5UPHJJDH72/q/3rZdM=
 github.com/gin-gonic/gin v1.5.0/go.mod h1:Nd6IXA8m5kNZdNEHMBd93KT+mdY3+bewLgRvmCsR2Do=
+github.com/glorv/pebble v0.0.0-20200612062857-44c9f9c01ae1 h1:wWHUizeh+gDn91c5OHMKhRqGcyMba/ZyHdKwvBRIZmE=
+github.com/glorv/pebble v0.0.0-20200612062857-44c9f9c01ae1/go.mod h1:crLnbSFbwAcQNs9FPfI1avHb5BqVgqZcr4r+IzpJ5FM=
 github.com/glorv/tidb v1.1.0-beta.0.20200611075632-394f1cfbe38b h1:Mpxk5qiH9SNnQX9CK9SP6V0nAOXzhkCGLUtvnXJx/pg=
 github.com/glorv/tidb v1.1.0-beta.0.20200611075632-394f1cfbe38b/go.mod h1:gDF1JeuVrYAG9Rjw8+o+A4N9u2KtL346pagru6LZDY0=
 github.com/go-bindata/go-bindata/v3 v3.1.3/go.mod h1:1/zrpXsLD8YDIbhZRqXzm1Ghc7NhEvIN9+Z6R5/xH4I=
