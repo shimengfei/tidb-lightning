@@ -260,11 +260,11 @@ func (local *local) openEngineDB(engineUUID uuid.UUID, readOnly bool) (*pebble.D
 		MemTableSize:             128 << 20,
 		MaxConcurrentCompactions: 16,
 		MinCompactionRate:        1 << 30,
-		L0CompactionThreshold:    math.MaxInt32, // set to max try to disable compaction
-		L0StopWritesThreshold:    math.MaxInt32, // set to max try to disable compaction
-		MaxOpenFiles:             10000,
-		DisableWAL:               true,
-		ReadOnly:                 readOnly,
+		//L0CompactionThreshold:    math.MaxInt32, // set to max try to disable compaction
+		L0StopWritesThreshold: math.MaxInt32, // set to max try to disable compaction
+		MaxOpenFiles:          10000,
+		DisableWAL:            true,
+		ReadOnly:              readOnly,
 	}
 	dbPath := filepath.Join(local.localStoreDir, engineUUID.String())
 	return pebble.Open(dbPath, opt)
