@@ -17,8 +17,10 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/mysql"
+	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/meta/autoid"
 	"github.com/pingcap/tidb/table"
+	"github.com/pingcap/tidb/table/tables"
 	"github.com/pingcap/tidb/tablecodec"
 	"github.com/pingcap/tidb/types"
 	"go.uber.org/zap"
@@ -36,6 +38,7 @@ type tableKVEncoder struct {
 	tbl         table.Table
 	se          *session
 	recordCache []types.Datum
+	ctxCache    *tables.CommonAddRecordCtx
 }
 
 func NewTableKVEncoder(tbl table.Table, options *SessionOptions) Encoder {
@@ -156,11 +159,16 @@ func (kvcodec *tableKVEncoder) Encode(
 	var value types.Datum
 	var err error
 	var record []types.Datum
+	var recordCtx *tables.CommonAddRecordCtx
 
 	if kvcodec.recordCache != nil {
 		record = kvcodec.recordCache
+		recordCtx = kvcodec.ctxCache
 	} else {
 		record = make([]types.Datum, 0, len(cols)+1)
+		txn, _ := kvcodec.se.Txn(true)
+		store := kv.NewStagingBufferStore(txn)
+		recordCtx = tables.NewCommonAddRecordCtx(len(cols), store)
 	}
 
 	isAutoRandom := false
@@ -175,7 +183,7 @@ func (kvcodec *tableKVEncoder) Encode(
 		if j >= 0 && j < len(row) {
 			value, err = table.CastValue(kvcodec.se, row[j], col.ToInfo(), false, false)
 			if err == nil {
-				value, err = col.HandleBadNull(value, kvcodec.se.vars.StmtCtx)
+				err = col.HandleBadNull(&value, kvcodec.se.vars.StmtCtx)
 			}
 		} else if isAutoIncCol {
 			// we still need a conversion, e.g. to catch overflow with a TINYINT column.
@@ -216,7 +224,7 @@ func (kvcodec *tableKVEncoder) Encode(
 		record = append(record, value)
 		kvcodec.tbl.RebaseAutoID(kvcodec.se, value.GetInt64(), false, autoid.RowIDAllocType)
 	}
-	_, err = kvcodec.tbl.AddRecord(kvcodec.se, record)
+	_, err = kvcodec.tbl.AddRecordWithCtx(kvcodec.se, record, recordCtx)
 	if err != nil {
 		logger.Error("kv encode failed",
 			zap.Array("originalRow", rowArrayMarshaler(row)),
@@ -227,6 +235,8 @@ func (kvcodec *tableKVEncoder) Encode(
 	}
 
 	pairs := kvcodec.se.takeKvPairs()
+	kvcodec.recordCache = record[:0]
+	kvcodec.ctxCache = recordCtx
 	kvcodec.recordCache = record[:0]
 	return kvPairs(pairs), nil
 }
