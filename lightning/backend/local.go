@@ -256,15 +256,21 @@ func (local *local) ShouldPostProcess() bool {
 }
 
 func (local *local) openEngineDB(engineUUID uuid.UUID, readOnly bool) (*pebble.DB, error) {
+	cache := pebble.NewCache(128 << 20)
+	defer cache.Unref()
 	opt := &pebble.Options{
-		MemTableSize:             128 << 20,
-		MaxConcurrentCompactions: 16,
-		MinCompactionRate:        1 << 30,
-		L0CompactionThreshold:    math.MaxInt32, // set to max try to disable compaction
-		L0StopWritesThreshold:    math.MaxInt32, // set to max try to disable compaction
-		MaxOpenFiles:             10000,
-		DisableWAL:               true,
-		ReadOnly:                 readOnly,
+		Cache:                       cache,
+		MemTableSize:                128 << 20,
+		MemTableStopWritesThreshold: 4,
+		MaxConcurrentCompactions:    16,
+		MinCompactionRate:           1 << 30,
+		MinFlushRate:                1 << 30,
+		L0CompactionThreshold:       math.MaxInt32, // set to max try to disable compaction
+		L0StopWritesThreshold:       math.MaxInt32, // set to max try to disable compaction
+		Levels:                      []pebble.LevelOptions{{BlockSize: 32 << 10, TargetFileSize: 96 << 20}},
+		MaxOpenFiles:                10000,
+		DisableWAL:                  true,
+		ReadOnly:                    readOnly,
 	}
 	dbPath := filepath.Join(local.localStoreDir, engineUUID.String())
 	return pebble.Open(dbPath, opt)
@@ -413,6 +419,11 @@ func (local *local) WriteToTiKV(
 		if err = wstream.Send(req); err != nil {
 			return nil, err
 		}
+		req.Chunk = &sst.WriteRequest_Batch{
+			Batch: &sst.WriteBatch{
+				CommitTs: engineFile.Ts,
+			},
+		}
 		clients = append(clients, wstream)
 		requests = append(requests, req)
 	}
@@ -422,34 +433,35 @@ func (local *local) WriteToTiKV(
 	pairs := make([]*sst.Pair, 0, local.batchWriteKVPairs)
 	count := 0
 	size := int64(0)
+	firstLoop := true
 	totalCount := 0
 	for iter.First(); iter.Valid(); iter.Next() {
 		size += int64(len(iter.Key()) + len(iter.Value()))
-		pair := &sst.Pair{
-			Key:   bytesBuf.addBytes(iter.Key()),
-			Value: bytesBuf.addBytes(iter.Value()),
+		// here we reuse the `*sst.Pair`s to optimize object allocation
+		if firstLoop {
+			pair := &sst.Pair{
+				Key:   bytesBuf.addBytes(iter.Key()),
+				Value: bytesBuf.addBytes(iter.Value()),
+			}
+			pairs = append(pairs, pair)
+		} else {
+			pairs[count].Key = bytesBuf.addBytes(iter.Key())
+			pairs[count].Value = bytesBuf.addBytes(iter.Value())
 		}
 
-		pairs = append(pairs, pair)
 		count++
 		totalCount++
 
 		if count >= local.batchWriteKVPairs {
 			for i := range clients {
-				requests[i].Reset()
-				requests[i].Chunk = &sst.WriteRequest_Batch{
-					Batch: &sst.WriteBatch{
-						CommitTs: engineFile.Ts,
-						Pairs:    pairs,
-					},
-				}
+				requests[i].Chunk.(*sst.WriteRequest_Batch).Batch.Pairs = pairs
 				if err := clients[i].Send(requests[i]); err != nil {
 					return nil, err
 				}
 			}
 			count = 0
-			pairs = pairs[:0]
 			bytesBuf.reset()
+			firstLoop = false
 		}
 	}
 
@@ -459,7 +471,7 @@ func (local *local) WriteToTiKV(
 			requests[i].Chunk = &sst.WriteRequest_Batch{
 				Batch: &sst.WriteBatch{
 					CommitTs: engineFile.Ts,
-					Pairs:    pairs,
+					Pairs:    pairs[:count],
 				},
 			}
 			if err := clients[i].Send(requests[i]); err != nil {

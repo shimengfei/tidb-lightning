@@ -14,7 +14,6 @@
 package mydump
 
 import (
-	"bytes"
 	"io"
 	"strings"
 
@@ -36,10 +35,12 @@ type CSVParser struct {
 	cfg       *config.CSVConfig
 	escFlavor backslashEscapeFlavor
 
-	comma          byte
-	quote          byte
-	quoteStopSet   string
-	unquoteStopSet string
+	comma            byte
+	quote            byte
+	quoteStopSet     string
+	quoteIndexFunc   func([]byte) int
+	unquoteStopSet   string
+	unquoteIndexFunc func([]byte) int
 
 	// recordBuffer holds the unescaped fields, one after another.
 	// The fields can be accessed by using the indexes in fieldIndexes.
@@ -79,13 +80,27 @@ func NewCSVParser(
 	}
 
 	return &CSVParser{
-		blockParser:    makeBlockParser(reader, blockBufSize, ioWorkers),
-		cfg:            cfg,
-		comma:          cfg.Separator[0],
-		quote:          quote,
-		escFlavor:      escFlavor,
-		quoteStopSet:   quoteStopSet,
-		unquoteStopSet: unquoteStopSet,
+		blockParser:      makeBlockParser(reader, blockBufSize, ioWorkers),
+		cfg:              cfg,
+		comma:            cfg.Separator[0],
+		quote:            quote,
+		escFlavor:        escFlavor,
+		quoteStopSet:     quoteStopSet,
+		quoteIndexFunc:   makeBytesIndexFunc(quoteStopSet),
+		unquoteStopSet:   unquoteStopSet,
+		unquoteIndexFunc: makeBytesIndexFunc(unquoteStopSet),
+	}
+}
+
+func makeBytesIndexFunc(chars string) func([]byte) int {
+	if as, ok := makeASCIISet(chars); ok {
+		return func(s []byte) int {
+			return IndexAnyAscii(s, &as)
+		}
+	} else {
+		return func(s []byte) int {
+			return IndexAnyUtf8(s, chars)
+		}
 	}
 }
 
@@ -134,8 +149,8 @@ func (parser *CSVParser) skipByte() {
 
 // readUntil reads the buffer until any character from the `chars` set is found.
 // that character is excluded from the final buffer.
-func (parser *CSVParser) readUntil(chars string) ([]byte, byte, error) {
-	index := bytes.IndexAny(parser.buf, chars)
+func (parser *CSVParser) readUntil(indexFunc func([]byte) int) ([]byte, byte, error) {
+	index := indexFunc(parser.buf)
 	if index >= 0 {
 		ret := parser.buf[:index]
 		parser.buf = parser.buf[index:]
@@ -155,7 +170,7 @@ func (parser *CSVParser) readUntil(chars string) ([]byte, byte, error) {
 			parser.pos += int64(len(buf))
 			return buf, 0, errors.Trace(err)
 		}
-		index := bytes.IndexAny(parser.buf, chars)
+		index := indexFunc(parser.buf)
 		if index >= 0 {
 			buf = append(buf, parser.buf[:index]...)
 			parser.buf = parser.buf[index:]
@@ -243,7 +258,7 @@ func (parser *CSVParser) readByteForBackslashEscape() error {
 
 func (parser *CSVParser) readQuotedField() error {
 	for {
-		content, terminator, err := parser.readUntil(parser.quoteStopSet)
+		content, terminator, err := parser.readUntil(parser.quoteIndexFunc)
 		err = parser.replaceEOF(err, errUnterminatedQuotedField)
 		if err != nil {
 			return err
@@ -281,7 +296,7 @@ func (parser *CSVParser) readQuotedField() error {
 
 func (parser *CSVParser) readUnquoteField() error {
 	for {
-		content, terminator, err := parser.readUntil(parser.unquoteStopSet)
+		content, terminator, err := parser.readUntil(parser.unquoteIndexFunc)
 		parser.recordBuffer = append(parser.recordBuffer, content...)
 		err = parser.replaceEOF(err, nil)
 		if err != nil {
@@ -346,22 +361,31 @@ func (parser *CSVParser) ReadRow() error {
 	}
 
 	row.Row = parser.acquireDatumSlice()
-	for _, record := range records {
-		var datum types.Datum
+	if cap(row.Row) >= len(records) {
+		row.Row = row.Row[:len(records)]
+	} else {
+		row.Row = make([]types.Datum, len(records))
+	}
+	for i, record := range records {
 		unescaped, isNull := parser.unescapeString(record)
 		if isNull {
-			datum.SetNull()
+			row.Row[i].SetNull()
 		} else {
-			datum.SetString(unescaped, "utf8mb4_bin")
+			row.Row[i].SetString(unescaped, "utf8mb4_bin")
 		}
-		row.Row = append(row.Row, datum)
 	}
 
 	return nil
 }
 
+var newLineAsciiSet, _ = makeASCIISet("\r\n")
+
+func indexOfNewLine(b []byte) int {
+	return IndexAnyAscii(b, &newLineAsciiSet)
+}
+
 func (parser *CSVParser) ReadUntilTokNewLine() (int64, error) {
-	_, _, err := parser.readUntil("\r\n")
+	_, _, err := parser.readUntil(indexOfNewLine)
 	if err != nil {
 		return 0, err
 	}
