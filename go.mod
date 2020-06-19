@@ -25,6 +25,7 @@ require (
 	github.com/pingcap/pd/v4 v4.0.0-rc.2.0.20200520083007-2c251bd8f181
 	github.com/pingcap/tidb v1.1.0-beta.0.20200604055950-efc1c154d098
 	github.com/pingcap/tidb-tools v4.0.0-rc.1.0.20200514040632-f76b3e428e19+incompatible
+	github.com/pingcap/tipb v0.0.0-20200615034523-dcfcea0b5965
 	github.com/prometheus/client_golang v1.5.1
 	github.com/prometheus/client_model v0.2.0
 	github.com/satori/go.uuid v1.2.0
