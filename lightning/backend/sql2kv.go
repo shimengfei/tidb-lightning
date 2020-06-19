@@ -38,15 +38,20 @@ type tableKVEncoder struct {
 	tbl         table.Table
 	se          *session
 	recordCache []types.Datum
-	ctxCache    *tables.CommonAddRecordCtx
 }
 
 func NewTableKVEncoder(tbl table.Table, options *SessionOptions) Encoder {
 	metric.KvEncoderCounter.WithLabelValues("open").Inc()
+	se := newSession(options)
+	// Set CommonAddRecordCtx to session to reuse the slices and BufStore in AddRecord
+	txn, _ := se.Txn(true)
+	store := kv.NewStagingBufferStore(txn)
+	recordCtx := tables.NewCommonAddRecordCtx(len(tbl.Cols()), store)
+	tables.SetAddRecordCtx(se, recordCtx)
 
 	return &tableKVEncoder{
 		tbl: tbl,
-		se:  newSession(options),
+		se:  se,
 	}
 }
 
@@ -159,16 +164,11 @@ func (kvcodec *tableKVEncoder) Encode(
 	var value types.Datum
 	var err error
 	var record []types.Datum
-	var recordCtx *tables.CommonAddRecordCtx
 
 	if kvcodec.recordCache != nil {
 		record = kvcodec.recordCache
-		recordCtx = kvcodec.ctxCache
 	} else {
 		record = make([]types.Datum, 0, len(cols)+1)
-		txn, _ := kvcodec.se.Txn(true)
-		store := kv.NewStagingBufferStore(txn)
-		recordCtx = tables.NewCommonAddRecordCtx(len(cols), store)
 	}
 
 	isAutoRandom := false
@@ -224,7 +224,7 @@ func (kvcodec *tableKVEncoder) Encode(
 		record = append(record, value)
 		kvcodec.tbl.RebaseAutoID(kvcodec.se, value.GetInt64(), false, autoid.RowIDAllocType)
 	}
-	_, err = kvcodec.tbl.AddRecordWithCtx(kvcodec.se, record, recordCtx)
+	_, err = kvcodec.tbl.AddRecord(kvcodec.se, record)
 	if err != nil {
 		logger.Error("kv encode failed",
 			zap.Array("originalRow", rowArrayMarshaler(row)),
@@ -235,8 +235,6 @@ func (kvcodec *tableKVEncoder) Encode(
 	}
 
 	pairs := kvcodec.se.takeKvPairs()
-	kvcodec.recordCache = record[:0]
-	kvcodec.ctxCache = recordCtx
 	kvcodec.recordCache = record[:0]
 	return kvPairs(pairs), nil
 }
